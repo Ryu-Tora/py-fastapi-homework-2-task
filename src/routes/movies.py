@@ -132,29 +132,15 @@ async def create_movie(new_movie: MovieCreate, db: AsyncSession = Depends(get_db
         country=country
     )
 
+    movie.genres = [await get_or_create(GenreModel, db, name=g) for g in new_movie.genres]
+    movie.actors = [await get_or_create(ActorModel, db, name=a) for a in new_movie.actors]
+    movie.languages = [await get_or_create(LanguageModel, db, name=l) for l in new_movie.languages]
+
     db.add(movie)
-    await db.flush()
-
-    genres = []
-    for genre_name in new_movie.genres:
-        g = await get_or_create(GenreModel, db, name=genre_name)
-        genres.append(g)
-    movie.genres = genres
-
-    actors = []
-    for actor_name in new_movie.actors:
-        g = await get_or_create(ActorModel, db, name=actor_name)
-        actors.append(g)
-    movie.actors = actors
-
-    languages = []
-    for language_name in new_movie.languages:
-        g = await get_or_create(LanguageModel, db, name=language_name)
-        languages.append(g)
-    movie.languages = languages
-
     await db.commit()
-    await db.refresh(movie, ["genres", "actors", "languages", "country"])
+
+    await db.refresh(movie, attribute_names=["genres", "actors", "languages", "country"])
+
     return movie
 
 
