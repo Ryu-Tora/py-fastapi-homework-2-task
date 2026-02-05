@@ -134,7 +134,7 @@ async def create_movie(new_movie: MovieCreate, db: AsyncSession = Depends(get_db
 
     movie.genres = [await get_or_create(GenreModel, db, name=g) for g in new_movie.genres]
     movie.actors = [await get_or_create(ActorModel, db, name=a) for a in new_movie.actors]
-    movie.languages = [await get_or_create(LanguageModel, db, name=l) for l in new_movie.languages]
+    movie.languages = [await get_or_create(LanguageModel, db, name=lang) for lang in new_movie.languages]
 
     db.add(movie)
     await db.commit()
