@@ -51,7 +51,13 @@ async def get_or_create(
     if instance:
         return instance
 
-    instance = model(**{field: value})
+    if code is not None and hasattr(model, "code"):
+        instance = model(code=code)
+    elif name is not None and hasattr(model, "name"):
+        instance = model(name=name)
+    else:
+        instance = model()
+
     db.add(instance)
     await db.flush()
     return instance
@@ -59,7 +65,6 @@ async def get_or_create(
 
 @router.get("/movies/", response_model=MovieListResponseSchema)
 async def get_movies(
-        request: Request,
         db: AsyncSession = Depends(get_db),
         page: int = Query(1, ge=1),
         per_page: int = Query(10, ge=1, le=20)
