@@ -64,10 +64,10 @@ async def get_movies(
     movies = result.scalars().all()
 
     if not movies:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No movies found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No movies found.")
 
-    total_result = await db.execute(select(func.count().select_from(MovieModel)))
-    total_items = total_result.scalar_one()
+    total_result = await db.execute(select(func.count()).select_from(MovieModel))
+    total_items = total_result.scalar()
     total_pages = math.ceil(total_items / per_page) if total_items else 1
 
     prev_page = str(request.url.replace_query_params(page=page - 1, per_page=per_page))\
@@ -101,7 +101,7 @@ async def create_movie(new_movie: MovieCreate, db: AsyncSession = Depends(get_db
             detail=f"A movie with the name '{new_movie.name}' and release date '{new_movie.date}' already exists."
         )
 
-    country = await get_or_create(CountryModel, db, code=new_movie.country)
+    country = await get_or_create(model=CountryModel, db=db, code=new_movie.country)
 
     movie = MovieModel(
         name=new_movie.name,
@@ -118,17 +118,17 @@ async def create_movie(new_movie: MovieCreate, db: AsyncSession = Depends(get_db
     await db.flush()
 
     movie.genres = [
-        await get_or_create(GenreModel, db, name=genre)
+        await get_or_create(model=GenreModel, db=db, name=genre)
         for genre in new_movie.genres
     ]
 
     movie.actors = [
-        await get_or_create(ActorModel, db, name=actor)
+        await get_or_create(model=ActorModel, db=db, name=actor)
         for actor in new_movie.actors
     ]
 
     movie.languages = [
-        await get_or_create(LanguageModel, db, name=language)
+        await get_or_create(model=LanguageModel, db=db, name=language)
         for language in new_movie.languages
     ]
 
@@ -159,14 +159,11 @@ async def get_movie(movie_id: int, db: AsyncSession = Depends(get_db)):
     return movie
 
 
-@router.delete("/movies/{movie_id}/")
+@router.delete("/movies/{movie_id}/", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_movie(movie_id: int, db: AsyncSession = Depends(get_db)):
     movie = await get_movie(movie_id, db)
-
     await db.delete(movie)
     await db.commit()
-
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.patch("/movies/{movie_id}/")
