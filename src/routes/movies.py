@@ -1,5 +1,4 @@
 import math
-from urllib.parse import urljoin
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi import Response
@@ -8,7 +7,8 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from schemas.movies import MovieCreate, MovieUpdateSchema, MovieListItemSchema, MovieDetailSchema
+from schemas.movies import MovieCreate, MovieUpdateSchema, MovieDetailSchema, \
+    MovieListResponseSchema
 from src.database import get_db
 from src.database.models import CountryModel, GenreModel, ActorModel, LanguageModel, MovieModel
 from starlette import status
@@ -31,7 +31,7 @@ async def get_or_create(model: BaseModel, name: str, db: AsyncSession = Depends(
     return instance
 
 
-@router.get("/movies/", response_model=list[MovieListItemSchema])
+@router.get("/movies/", response_model=MovieListResponseSchema)
 async def get_movies(
         request: Request,
         db: AsyncSession = Depends(get_db),
@@ -42,6 +42,7 @@ async def get_movies(
 
     result = await db.execute(
         select(MovieModel)
+        .order_by(MovieModel.id.desc())
         .limit(per_page)
         .offset(offset)
     )
@@ -54,8 +55,12 @@ async def get_movies(
     total_items = total_result.scalars()
     total_pages = math.ceil(total_items / per_page) if total_items else 1
 
-    prev_page = urljoin(request.url.path, f"{page - 1}, {per_page}" if page > 1 else None)
-    next_page = urljoin(request.url.path, f"{page + 1}, {per_page}" if page < total_pages else None)
+    prev_page = str(request.url.replace_query_params(page=page - 1, per_page=per_page))\
+        if page > 1 \
+        else None
+    next_page = str(request.url.replace_query_params(page=page + 1, per_page=per_page)) \
+        if page < total_pages \
+        else None
 
     return {
         "movies": movies,
@@ -66,28 +71,31 @@ async def get_movies(
     }
 
 
-@router.post("/movies/", response_model=MovieCreate)
-async def create_movie(movie: MovieCreate, db: AsyncSession = Depends(get_db)):
+@router.post("/movies/", response_model=MovieDetailSchema)
+async def create_movie(new_movie: MovieCreate, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(MovieModel).where(
-            MovieModel.name == movie.name,
-            MovieModel.date == movie.date,
+            MovieModel.name == new_movie.name,
+            MovieModel.date == new_movie.date,
         )
     )
 
     if result.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Movie already exists")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A movie with the name '{new_movie.name}' and release date '{new_movie.date}' already exists."
+        )
 
-    country = get_or_create(CountryModel, movie.country, db)
+    country = await get_or_create(CountryModel, new_movie.country, db)
 
     movie = MovieModel(
-        name=movie.name,
-        date=movie.date,
-        score=movie.score,
-        overview=movie.overview,
-        status=movie.status,
-        budget=movie.budget,
-        revenue=movie.revenue,
+        name=new_movie.name,
+        date=new_movie.date,
+        score=new_movie.score,
+        overview=new_movie.overview,
+        status=new_movie.status,
+        budget=new_movie.budget,
+        revenue=new_movie.revenue,
         country_id=country.id
     )
 
@@ -111,10 +119,10 @@ async def create_movie(movie: MovieCreate, db: AsyncSession = Depends(get_db)):
 
     await db.commit()
     await db.refresh(movie)
-    return movie
+    return
 
 
-@router.get("/movies/{movie_id}", response_model=MovieDetailSchema)
+@router.get("/movies/{movie_id}", response_model=MovieDetailSchema, status_code=status.HTTP_201_CREATED)
 async def get_movie(movie_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(MovieModel).where(MovieModel.id == movie_id)
@@ -128,7 +136,10 @@ async def get_movie(movie_id: int, db: AsyncSession = Depends(get_db)):
 
     movie = result.scalar_one_or_none()
     if not movie:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Movie not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movie with the given ID was not found."
+        )
 
     return movie
 
@@ -136,6 +147,7 @@ async def get_movie(movie_id: int, db: AsyncSession = Depends(get_db)):
 @router.delete("/movies/{movie_id}")
 async def delete_movie(movie_id: int, db: AsyncSession = Depends(get_db)):
     movie = await get_movie(movie_id, db)
+
     if movie is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Movie with the given ID was not found.")
 
@@ -147,12 +159,12 @@ async def delete_movie(movie_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.patch("/movies/{movie_id}")
 async def update_movie(movie_id: int, data: MovieUpdateSchema, db: AsyncSession = Depends(get_db)):
-    movie = get_movie(movie_id, db)
+    movie = await get_movie(movie_id, db)
 
     if not movie:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Movie with the given ID was not found.")
 
-    update_data = data.model_dump(execute_unset=True)
+    update_data = data.model_dump(exclude_unset=True)
 
     if not update_data:
         raise HTTPException(
