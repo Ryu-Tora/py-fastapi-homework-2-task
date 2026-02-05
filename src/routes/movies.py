@@ -147,7 +147,6 @@ async def create_movie(new_movie: MovieCreate, db: AsyncSession = Depends(get_db
         actors.append(g)
     movie.actors = actors
 
-
     languages = []
     for language_name in new_movie.languages:
         g = await get_or_create(LanguageModel, db, name=language_name)
