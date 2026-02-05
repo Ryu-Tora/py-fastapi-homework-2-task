@@ -38,7 +38,7 @@ async def get_or_create(model: BaseModel, db: AsyncSession = Depends(get_db), **
     instance = result.scalar_one_or_none()
 
     if instance:
-       return instance
+        return instance
 
     instance = model(**lookup)
     db.add(instance)
