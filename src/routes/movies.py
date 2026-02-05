@@ -33,16 +33,16 @@ router = APIRouter()
 
 async def get_or_create(
         model: BaseModel,
-        db: AsyncSession = Depends(get_db),
+        db,
         *,
         name: str | None = None,
         code: str | None = None,
 ):
     obj = select(model)
-    if name:
+    if name is not None and hasattr(model, "name"):
         obj = obj.where(model.name == name)
 
-    if code is not None:
+    if code is not None and hasattr(model, "code"):
         obj = obj.where(model.code == code)
 
     result = await db.execute(obj)
@@ -51,15 +51,17 @@ async def get_or_create(
     if instance:
         return instance
 
+    kwargs = {}
     if code is not None and hasattr(model, "code"):
-        instance = model(code=code)
-    elif name is not None and hasattr(model, "name"):
-        instance = model(name=name)
-    else:
-        instance = model()
+        kwargs["code"] = code
+    if name is not None and hasattr(model, "name"):
+        kwargs["name"] = name
+
+    instance = model(**kwargs)
 
     db.add(instance)
-    await db.flush()
+    await db.commit()
+    await db.refresh(instance)
     return instance
 
 
