@@ -17,15 +17,15 @@ from starlette import status
 router = APIRouter()
 
 
-async def get_or_create(model: BaseModel, name: str, db: AsyncSession = Depends(get_db)):
-    obj = select(model).where(model.name == name).first()
+async def get_or_create(model: BaseModel, db: AsyncSession = Depends(get_db), **lookup):
+    obj = select(model).filter(**lookup)
     result = await db.execute(obj)
     instance = result.scalar_one_or_none()
 
     if instance:
        return instance
 
-    instance = await model.create(name=name, db=db)
+    instance = model(**lookup)
     db.add(instance)
     await db.flush()
     return instance
@@ -52,7 +52,7 @@ async def get_movies(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No movies found")
 
     total_result = await db.execute(select(func.count().select_from(MovieModel)))
-    total_items = total_result.scalars()
+    total_items = total_result.scalar_one()
     total_pages = math.ceil(total_items / per_page) if total_items else 1
 
     prev_page = str(request.url.replace_query_params(page=page - 1, per_page=per_page))\
