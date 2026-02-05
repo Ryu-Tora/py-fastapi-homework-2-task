@@ -51,7 +51,7 @@ async def get_or_create(
     if instance:
         return instance
 
-    instance = model(name=name, code=code)
+    instance = model(**{field: value})
     db.add(instance)
     await db.flush()
     return instance
