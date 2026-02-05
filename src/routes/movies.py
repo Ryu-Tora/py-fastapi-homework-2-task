@@ -1,16 +1,31 @@
 import math
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    Request
+)
 from fastapi import Response
 from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
-from schemas.movies import MovieCreate, MovieUpdateSchema, MovieDetailSchema, \
+from schemas.movies import (
+    MovieCreate,
+    MovieUpdateSchema,
+    MovieDetailSchema,
     MovieListResponseSchema
+)
 from src.database import get_db
-from src.database.models import CountryModel, GenreModel, ActorModel, LanguageModel, MovieModel
+from src.database.models import (
+    CountryModel,
+    GenreModel,
+    ActorModel,
+    LanguageModel,
+    MovieModel
+)
 from starlette import status
 
 
@@ -86,7 +101,7 @@ async def create_movie(new_movie: MovieCreate, db: AsyncSession = Depends(get_db
             detail=f"A movie with the name '{new_movie.name}' and release date '{new_movie.date}' already exists."
         )
 
-    country = await get_or_create(CountryModel, new_movie.country, db)
+    country = await get_or_create(CountryModel, db, code=new_movie.country)
 
     movie = MovieModel(
         name=new_movie.name,
@@ -103,17 +118,17 @@ async def create_movie(new_movie: MovieCreate, db: AsyncSession = Depends(get_db
     await db.flush()
 
     movie.genres = [
-        await get_or_create(GenreModel, genre, db)
+        await get_or_create(GenreModel, db, name=genre)
         for genre in new_movie.genres
     ]
 
     movie.actors = [
-        await get_or_create(ActorModel, actor, db)
+        await get_or_create(ActorModel, db, name=actor)
         for actor in new_movie.actors
     ]
 
     movie.languages = [
-        await get_or_create(LanguageModel, language, db)
+        await get_or_create(LanguageModel, db, name=language)
         for language in new_movie.languages
     ]
 
@@ -122,7 +137,7 @@ async def create_movie(new_movie: MovieCreate, db: AsyncSession = Depends(get_db
     return movie
 
 
-@router.get("/movies/{movie_id}/", response_model=MovieDetailSchema, status_code=status.HTTP_201_CREATED)
+@router.get("/movies/{movie_id}/", response_model=MovieDetailSchema, status_code=status.HTTP_200_OK)
 async def get_movie(movie_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(MovieModel).where(MovieModel.id == movie_id)
