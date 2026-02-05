@@ -154,7 +154,7 @@ async def create_movie(new_movie: MovieCreate, db: AsyncSession = Depends(get_db
     movie.languages = languages
 
     await db.commit()
-    await db.refresh(movie)
+    await db.refresh(movie, ["genres", "actors", "languages", "country"])
     return movie
 
 
