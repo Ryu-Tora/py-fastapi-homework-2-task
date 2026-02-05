@@ -85,10 +85,10 @@ class MovieListResponseSchema(BaseModel):
 
 class MovieUpdateSchema(BaseModel):
     name: Optional[str] = Field(None, max_length=255)
-    date: Optional[date]
+    date: Optional[date] = None
     score: Optional[float] = Field(None, ge=0, le=100)
-    overview: Optional[str]
-    status: Optional[str]
+    overview: Optional[str] = None
+    status: Optional[str] = None
     budget: Optional[float] = Field(None, ge=0)
     revenue: Optional[float] = Field(None, ge=0)
 

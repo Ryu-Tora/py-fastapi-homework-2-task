@@ -7,7 +7,6 @@ from fastapi import (
     Query,
     Request
 )
-from fastapi import Response
 from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,15 +31,27 @@ from starlette import status
 router = APIRouter()
 
 
-async def get_or_create(model: BaseModel, db: AsyncSession = Depends(get_db), **lookup):
-    obj = select(model).filter(**lookup)
+async def get_or_create(
+        model: BaseModel,
+        db: AsyncSession = Depends(get_db),
+        *,
+        name: str | None = None,
+        code: str | None = None,
+):
+    obj = select(model)
+    if name:
+        obj = obj.where(model.name == name)
+
+    if code is not None:
+        obj = obj.where(model.code == code)
+
     result = await db.execute(obj)
     instance = result.scalar_one_or_none()
 
     if instance:
         return instance
 
-    instance = model(**lookup)
+    instance = model(name=name, code=code)
     db.add(instance)
     await db.flush()
     return instance
@@ -70,10 +81,10 @@ async def get_movies(
     total_items = total_result.scalar()
     total_pages = math.ceil(total_items / per_page) if total_items else 1
 
-    prev_page = str(request.url.replace_query_params(page=page - 1, per_page=per_page))\
+    prev_page = f"/theater/movies/?page={page - 1}&per_page={per_page}"\
         if page > 1 \
         else None
-    next_page = str(request.url.replace_query_params(page=page + 1, per_page=per_page)) \
+    next_page = f"/theater/movies/?page={page + 1}&per_page={per_page}"\
         if page < total_pages \
         else None
 
@@ -101,7 +112,7 @@ async def create_movie(new_movie: MovieCreate, db: AsyncSession = Depends(get_db
             detail=f"A movie with the name '{new_movie.name}' and release date '{new_movie.date}' already exists."
         )
 
-    country = await get_or_create(model=CountryModel, db=db, code=new_movie.country)
+    country = await get_or_create(CountryModel, db, code=new_movie.country)
 
     movie = MovieModel(
         name=new_movie.name,
@@ -118,17 +129,17 @@ async def create_movie(new_movie: MovieCreate, db: AsyncSession = Depends(get_db
     await db.flush()
 
     movie.genres = [
-        await get_or_create(model=GenreModel, db=db, name=genre)
+        await get_or_create(GenreModel, db, name=genre)
         for genre in new_movie.genres
     ]
 
     movie.actors = [
-        await get_or_create(model=ActorModel, db=db, name=actor)
+        await get_or_create(ActorModel, db, name=actor)
         for actor in new_movie.actors
     ]
 
     movie.languages = [
-        await get_or_create(model=LanguageModel, db=db, name=language)
+        await get_or_create(LanguageModel, db, name=language)
         for language in new_movie.languages
     ]
 
