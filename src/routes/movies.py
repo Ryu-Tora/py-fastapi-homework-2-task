@@ -71,7 +71,7 @@ async def get_movies(
     }
 
 
-@router.post("/movies/", response_model=MovieDetailSchema)
+@router.post("/movies/", response_model=MovieDetailSchema, status_code=status.HTTP_201_CREATED)
 async def create_movie(new_movie: MovieCreate, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(MovieModel).where(
@@ -104,25 +104,25 @@ async def create_movie(new_movie: MovieCreate, db: AsyncSession = Depends(get_db
 
     movie.genres = [
         await get_or_create(GenreModel, genre, db)
-        for genre in movie.genres
+        for genre in new_movie.genres
     ]
 
     movie.actors = [
         await get_or_create(ActorModel, actor, db)
-        for actor in movie.actors
+        for actor in new_movie.actors
     ]
 
     movie.languages = [
         await get_or_create(LanguageModel, language, db)
-        for language in movie.languages
+        for language in new_movie.languages
     ]
 
     await db.commit()
     await db.refresh(movie)
-    return
+    return movie
 
 
-@router.get("/movies/{movie_id}", response_model=MovieDetailSchema, status_code=status.HTTP_201_CREATED)
+@router.get("/movies/{movie_id}/", response_model=MovieDetailSchema, status_code=status.HTTP_201_CREATED)
 async def get_movie(movie_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(MovieModel).where(MovieModel.id == movie_id)
@@ -144,12 +144,9 @@ async def get_movie(movie_id: int, db: AsyncSession = Depends(get_db)):
     return movie
 
 
-@router.delete("/movies/{movie_id}")
+@router.delete("/movies/{movie_id}/")
 async def delete_movie(movie_id: int, db: AsyncSession = Depends(get_db)):
     movie = await get_movie(movie_id, db)
-
-    if movie is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Movie with the given ID was not found.")
 
     await db.delete(movie)
     await db.commit()
@@ -157,12 +154,9 @@ async def delete_movie(movie_id: int, db: AsyncSession = Depends(get_db)):
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.patch("/movies/{movie_id}")
+@router.patch("/movies/{movie_id}/")
 async def update_movie(movie_id: int, data: MovieUpdateSchema, db: AsyncSession = Depends(get_db)):
     movie = await get_movie(movie_id, db)
-
-    if not movie:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Movie with the given ID was not found.")
 
     update_data = data.model_dump(exclude_unset=True)
 
